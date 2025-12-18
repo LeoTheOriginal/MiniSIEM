@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}miniSIEM - Security Dashboard{% endblock %}</title>
 
+    <!-- ⭐ CSRF TOKEN dla JavaScript (ZADANIE DODATKOWE) -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
     <!-- DARK MODE INIT - MUSI BYĆ PRZED CSS! -->
     <script>
     (function() {

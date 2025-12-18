@@ -35,6 +35,52 @@
         </div>
     </div>
 
+    <!-- ⭐ ZADANIE DODATKOWE: WYKRESY CHART.JS -->
+    <div class="charts-section animate-fade-in mb-5">
+        <div class="section-header mb-3">
+            <h3>
+                <i class="fas fa-chart-bar text-info me-2"></i>
+                Analityka Zagrożeń
+            </h3>
+            <p class="section-subtitle mb-0">
+                <i class="fas fa-clock me-1"></i>
+                Ostatnie 24 godziny
+            </p>
+        </div>
+
+        <div class="row g-4">
+            <!-- Wykres alertów na godzinę -->
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-transparent">
+                        <h6 class="mb-0">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Alerty na Godzinę
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="hourlyChart" height="80"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top 5 atakujących IP -->
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-transparent">
+                        <h6 class="mb-0">
+                            <i class="fas fa-bullseye me-2"></i>
+                            Top 5 Atakujących IP
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="topIPsChart" height="180"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ALERTS SECTION -->
     <div class="alerts-section animate-fade-in">
         <div class="section-header mb-3">
@@ -97,4 +143,8 @@
 
   </div>
 </section>
+
+<!-- ⭐ Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
 {% endblock %}

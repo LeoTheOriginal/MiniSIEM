@@ -31,8 +31,9 @@ def create_app(config_class=Config):
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(auth_bp)
 
-    # Wyłączenie CSRF dla API (fetch)
-    csrf.exempt(api_bp)
+    # ⭐ ZADANIE DODATKOWE: Pełne zabezpieczenie CSRF
+    # Usunięto csrf.exempt(api_bp) - API jest teraz w pełni zabezpieczone!
+    # Frontend musi wysyłać X-CSRFToken header w każdym żądaniu POST/PUT/DELETE
 
     # Auto-tworzenie bazy (opcjonalne, jeśli używamy migracji, ale wygodne)
     with app.app_context():

@@ -1,9 +1,13 @@
 import { createEl, clearContainer } from './dom.js';
-import { fetchHosts, checkHostStatus, triggerLogFetch, fetchAlerts } from './api.js';
+import { fetchHosts, checkHostStatus, triggerLogFetch, fetchAlerts, fetchAlertStats } from './api.js';
 
 const hostsContainer = document.getElementById('hostsContainer');
 const alertsBody = document.getElementById('alertsBody');
 const alertCount = document.getElementById('alertCount');
+
+// ⭐ Chart.js instances
+let hourlyChart = null;
+let topIPsChart = null;
 
 export async function initDashboard() {
     if (!hostsContainer) return;
@@ -13,6 +17,9 @@ export async function initDashboard() {
     if (alertsBody) {
         await refreshAlertsTable();
     }
+
+    // ⭐ ZADANIE DODATKOWE: Inicjalizacja wykresów
+    await initCharts();
 }
 
 async function refreshHostsList() {
@@ -227,8 +234,9 @@ async function handleFetchLogs(host, btn) {
             btn.disabled = false;
         }, 3000);
 
-        // Odśwież tabelę alertów po pobraniu logów
+        // ⭐ Odśwież ZARÓWNO tabelę alertów JAK I wykresy po pobraniu logów
         await refreshAlertsTable();
+        await updateCharts();
 
     } catch (err) {
         alert("❌ Błąd pobierania logów: " + err.message);
@@ -244,7 +252,6 @@ async function refreshAlertsTable() {
     clearContainer(alertsBody);
 
     try {
-        // POPRAWKA: Pobieramy alerty z API zamiast pustej tablicy!
         const alerts = await fetchAlerts();
 
         if (alerts.length === 0) {
@@ -303,5 +310,132 @@ async function refreshAlertsTable() {
         const cell = createEl('td', ['text-center', 'text-danger', 'py-4'], '', row);
         cell.innerHTML = `<i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>Błąd pobierania alertów: ${err.message}`;
         cell.colSpan = 6;
+    }
+}
+
+// ===================================================================
+// ⭐ ZADANIE DODATKOWE: Wykresy Chart.js
+// ===================================================================
+
+async function initCharts() {
+    const hourlyCanvas = document.getElementById('hourlyChart');
+    const topIPsCanvas = document.getElementById('topIPsChart');
+
+    if (!hourlyCanvas || !topIPsCanvas) {
+        console.log("Chart canvas not found, skipping chart initialization");
+        return;
+    }
+
+    try {
+        const stats = await fetchAlertStats();
+
+        // Wykres alertów na godzinę (liniowy)
+        hourlyChart = new Chart(hourlyCanvas, {
+            type: 'line',
+            data: {
+                labels: stats.hourly.labels,
+                datasets: [{
+                    label: 'Liczba Alertów',
+                    data: stats.hourly.data,
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+
+        // Wykres Top 5 IP (poziomy słupkowy)
+        topIPsChart = new Chart(topIPsCanvas, {
+            type: 'bar',
+            data: {
+                labels: stats.top_ips.labels.length > 0 ? stats.top_ips.labels : ['Brak danych'],
+                datasets: [{
+                    label: 'Liczba Ataków',
+                    data: stats.top_ips.data.length > 0 ? stats.top_ips.data : [0],
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.8)',
+                        'rgba(255, 159, 64, 0.8)',
+                        'rgba(255, 205, 86, 0.8)',
+                        'rgba(75, 192, 192, 0.8)',
+                        'rgba(54, 162, 235, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgb(255, 99, 132)',
+                        'rgb(255, 159, 64)',
+                        'rgb(255, 205, 86)',
+                        'rgb(75, 192, 192)',
+                        'rgb(54, 162, 235)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+
+    } catch (err) {
+        console.error("Error initializing charts:", err);
+    }
+}
+
+async function updateCharts() {
+    if (!hourlyChart || !topIPsChart) {
+        // Jeśli wykresy nie były jeszcze zainicjalizowane, zrób to teraz
+        await initCharts();
+        return;
+    }
+
+    try {
+        const stats = await fetchAlertStats();
+
+        // Update hourly chart
+        hourlyChart.data.labels = stats.hourly.labels;
+        hourlyChart.data.datasets[0].data = stats.hourly.data;
+        hourlyChart.update();
+
+        // Update top IPs chart
+        topIPsChart.data.labels = stats.top_ips.labels.length > 0 ? stats.top_ips.labels : ['Brak danych'];
+        topIPsChart.data.datasets[0].data = stats.top_ips.data.length > 0 ? stats.top_ips.data : [0];
+        topIPsChart.update();
+
+    } catch (err) {
+        console.error("Error updating charts:", err);
     }
 }

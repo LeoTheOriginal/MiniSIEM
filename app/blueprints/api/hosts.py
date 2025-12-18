@@ -1,8 +1,9 @@
 import time
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required
-from datetime import timezone, datetime
+from datetime import timezone, datetime, timedelta
 import os
+from sqlalchemy import func
 
 from app.models import Host, LogSource, LogArchive, Alert, IPRegistry
 from app.services.remote_client import RemoteClient
@@ -214,7 +215,7 @@ def fetch_logs(host_id):
         db.session.commit()
         print(f"📚 Dodano wpis do LogArchive")
 
-        # 7. Analiza zagrożeń (SIEM)
+        # 7. Analiza zagrożeń (SIEM) - Teraz z Cross-Host Correlation!
         print(f"🔍 Wywołuję LogAnalyzer.analyze_parquet('{filename}', {host.id})...")
         alerts_count = LogAnalyzer.analyze_parquet(filename, host.id)
         print(f"✅ Analiza zakończona, wygenerowano {alerts_count} alertów")
@@ -291,3 +292,69 @@ def delete_ip(ip_id):
 def get_recent_alerts():
     alerts = Alert.query.order_by(Alert.timestamp.desc()).limit(20).all()
     return jsonify([alert.to_dict() for alert in alerts])
+
+
+# ===================================================================
+# ⭐ ZADANIE DODATKOWE: Endpoint dla statystyk (Chart.js)
+# ===================================================================
+
+@api_bp.route("/alerts/stats", methods=["GET"])
+def get_alert_stats():
+    """
+    Zwraca statystyki alertów dla wykresu:
+    - Liczba alertów na godzinę (ostatnie 24h)
+    - Top 5 atakujących IP
+    """
+    now = datetime.now(timezone.utc)
+    twenty_four_hours_ago = now - timedelta(hours=24)
+
+    # 1. Alerty na godzinę (ostatnie 24h)
+    hourly_alerts = db.session.query(
+        func.strftime('%H:00', Alert.timestamp).label('hour'),
+        func.count(Alert.id).label('count')
+    ).filter(
+        Alert.timestamp >= twenty_four_hours_ago
+    ).group_by('hour').order_by('hour').all()
+
+    # Wypełnij brakujące godziny zerami
+    hours_dict = {f"{h:02d}:00": 0 for h in range(24)}
+    for hour, count in hourly_alerts:
+        if hour:
+            hours_dict[hour] = count
+
+    hourly_data = {
+        'labels': list(hours_dict.keys()),
+        'data': list(hours_dict.values())
+    }
+
+    # 2. Top 5 atakujących IP
+    top_ips = db.session.query(
+        Alert.source_ip,
+        func.count(Alert.id).label('count')
+    ).filter(
+        Alert.source_ip.isnot(None),
+        Alert.source_ip != 'LOCAL',
+        Alert.source_ip != 'LOCAL_CONSOLE'
+    ).group_by(Alert.source_ip).order_by(func.count(Alert.id).desc()).limit(5).all()
+
+    top_ips_data = {
+        'labels': [ip for ip, count in top_ips],
+        'data': [count for ip, count in top_ips]
+    }
+
+    # 3. Severity distribution
+    severity_stats = db.session.query(
+        Alert.severity,
+        func.count(Alert.id).label('count')
+    ).group_by(Alert.severity).all()
+
+    severity_data = {
+        'labels': [sev for sev, count in severity_stats],
+        'data': [count for sev, count in severity_stats]
+    }
+
+    return jsonify({
+        'hourly': hourly_data,
+        'top_ips': top_ips_data,
+        'severity': severity_data
+    })
