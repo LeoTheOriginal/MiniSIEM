@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% block title %}Konfiguracja - miniSIEM{% endblock %}
+{% block content %}
+
+<section class="py-4">
+  <div class="container">
+
+    <!-- PAGE HEADER -->
+    <div class="section-header mb-4 animate-fade-in">
+        <h2>
+            <i class="fas fa-tools text-danger me-2"></i>
+            Panel Administracyjny
+        </h2>
+        <p class="section-subtitle">
+            <i class="fas fa-user-shield me-1"></i>
+            Zarządzanie hostami i bazą threat intelligence
+        </p>
+    </div>
+
+    <!-- ================= HOSTS SECTION ================= -->
+    <div class="config-section">
+        <h4 class="mb-3">
+            <i class="fas fa-server text-primary me-2"></i>
+            Zarządzanie Hostami
+        </h4>
+        <div class="row g-3">
+            <!-- Formularz dodawania hosta -->
+            <div class="col-lg-5">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header navbar-gradient text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-plus-circle me-2"></i>Dodaj Nowy Host
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="hostForm">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">
+                                    <i class="fas fa-tag me-1"></i>Nazwa Hosta
+                                </label>
+                                <input type="text" id="hostName" class="form-control" placeholder="np. DESKTOP-01" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">
+                                    <i class="fas fa-network-wired me-1"></i>Adres IP
+                                </label>
+                                <input type="text" id="hostIP" class="form-control" placeholder="192.168.1.100" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">
+                                    <i class="fas fa-laptop me-1"></i>System Operacyjny
+                                </label>
+                                <select id="hostOS" class="form-select">
+                                    <option value="LINUX">
+                                        <i class="fab fa-linux"></i> Linux
+                                    </option>
+                                    <option value="WINDOWS">
+                                        <i class="fab fa-windows"></i> Windows
+                                    </option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 rounded-pill">
+                                <i class="fas fa-plus me-1"></i>Dodaj Hosta
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista hostów -->
+            <div class="col-lg-7">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-secondary text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-list me-2"></i>Zarejestrow ane Hosty
+                        </h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="hostsListAdmin" class="list-group list-group-flush" style="max-height: 350px; overflow-y: auto;">
+                            <div class="text-center py-4 text-muted">
+                                <i class="fas fa-server fa-2x mb-2 d-block"></i>
+                                <span>Ładowanie hostów...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= IP REGISTRY SECTION ================= -->
+    <div class="config-section">
+        <h4 class="mb-3">
+            <i class="fas fa-shield-alt text-warning me-2"></i>
+            Rejestr IP (Threat Intelligence)
+        </h4>
+        <div class="row g-3">
+            <!-- Formularz dodawania IP -->
+            <div class="col-lg-5">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header navbar-gradient text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-plus-circle me-2"></i>Dodaj Adres IP
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form id="ipForm">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">
+                                    <i class="fas fa-network-wired me-1"></i>Adres IP
+                                </label>
+                                <input type="text" id="regIP" class="form-control" placeholder="192.168.1.50" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small">
+                                    <i class="fas fa-flag me-1"></i>Status Reputacji
+                                </label>
+                                <select id="regStatus" class="form-select">
+                                    <option value="UNKNOWN">🔵 UNKNOWN (Nieznany)</option>
+                                    <option value="BANNED">🔴 BANNED (Zablokowany)</option>
+                                    <option value="TRUSTED">🟢 TRUSTED (Zaufany)</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-warning w-100 rounded-pill">
+                                <i class="fas fa-plus me-1"></i>Dodaj do Rejestru
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista IP -->
+            <div class="col-lg-7">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-database me-2"></i>Baza Reputacji IP
+                        </h6>
+                        <button id="refreshIPsBtn" class="btn btn-sm btn-outline-light rounded-pill">
+                            <i class="fas fa-sync-alt me-1"></i>Odśwież
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="ipListAdmin" class="list-group list-group-flush" style="max-height: 350px; overflow-y: auto;">
+                            <div class="text-center py-4 text-muted">
+                                <i class="fas fa-database fa-2x mb-2 d-block"></i>
+                                <span>Ładowanie bazy IP...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- EDIT HOST MODAL -->
+<div class="modal fade" id="editHostModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header navbar-gradient text-white">
+        <h5 class="modal-title">
+            <i class="fas fa-edit me-2"></i>Edytuj Hosta
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form>
+            <input type="hidden" id="editHostId">
+            <div class="mb-3">
+                <label class="form-label fw-bold small">
+                    <i class="fas fa-tag me-1"></i>Nazwa
+                </label>
+                <input type="text" id="editHostName" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold small">
+                    <i class="fas fa-network-wired me-1"></i>IP
+                </label>
+                <input type="text" id="editHostIP" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold small">
+                    <i class="fas fa-laptop me-1"></i>System
+                </label>
+                <select id="editHostOS" class="form-select">
+                    <option value="LINUX">Linux</option>
+                    <option value="WINDOWS">Windows</option>
+                </select>
+            </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">
+            <i class="fas fa-times me-1"></i>Anuluj
+        </button>
+        <button class="btn btn-primary rounded-pill" id="saveHostBtn">
+            <i class="fas fa-save me-1"></i>Zapisz Zmiany
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT IP MODAL -->
+<div class="modal fade" id="editIPModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header navbar-gradient text-white">
+        <h5 class="modal-title">
+            <i class="fas fa-edit me-2"></i>Edytuj IP
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form>
+            <input type="hidden" id="editIPId">
+            <div class="mb-3">
+                <label class="form-label fw-bold small">
+                    <i class="fas fa-network-wired me-1"></i>Adres IP
+                </label>
+                <input type="text" id="editIPVal" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold small">
+                    <i class="fas fa-flag me-1"></i>Status
+                </label>
+                <select id="editIPStatus" class="form-select">
+                    <option value="UNKNOWN">🔵 UNKNOWN</option>
+                    <option value="BANNED">🔴 BANNED</option>
+                    <option value="TRUSTED">🟢 TRUSTED</option>
+                </select>
+            </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary rounded-pill" data-bs-dismiss="modal">
+            <i class="fas fa-times me-1"></i>Anuluj
+        </button>
+        <button class="btn btn-primary rounded-pill" id="saveIPBtn">
+            <i class="fas fa-save me-1"></i>Zapisz Zmiany
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
