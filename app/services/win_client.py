@@ -18,18 +18,18 @@ class WinClient:
     def run_ps(self, cmd):
         """Uruchamia komendę PowerShell i zwraca stdout"""
         full_cmd = ["powershell", "-Command", cmd]
-        
+
         try:
             # encoding='oem' lub 'cp852' dla polskiego Windowsa
             result = subprocess.run(
-                full_cmd, 
-                capture_output=True, 
-                text=True, 
-                encoding='oem' 
+                full_cmd,
+                capture_output=True,
+                text=True,
+                encoding='oem'
             )
             if result.returncode != 0:
                 raise Exception(f"PS Error: {result.stderr.strip()}")
-            
+
             return result.stdout.strip()
         except Exception as e:
             raise e

@@ -46,25 +46,38 @@ class LogAnalyzer:
             ip = row['source_ip']
             user = row.get('user', 'unknown')
 
-            # --- FIX: Czysta data bez strefy czasowej ---
-            # Pobieramy czas z logu
-            exact_timestamp = row['timestamp']
+            # --- FIX: Obsługa daty (Linux Timestamp vs Windows String) ---
+            raw_ts = row['timestamp']
+            exact_timestamp = None
 
-            # Konwersja na obiekt datetime, jeśli to timestamp Pandasa
-            if hasattr(exact_timestamp, 'to_pydatetime'):
-                exact_timestamp = exact_timestamp.to_pydatetime()
+            # Przypadek 1: Linux (Pandas Timestamp)
+            if hasattr(raw_ts, 'to_pydatetime'):
+                exact_timestamp = raw_ts.to_pydatetime()
 
-            # Najważniejsze: usuwamy strefę czasową (make naive).
-            # Dzięki temu mamy "surową" godzinę (np. 02:04) taką jak w logu.
+            # Przypadek 2: Windows (String "YYYY-MM-DD HH:MM:SS")
+            elif isinstance(raw_ts, str):
+                try:
+                    # Parsujemy tekst na obiekt daty
+                    exact_timestamp = datetime.strptime(raw_ts, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    # Awaryjnie, jeśli format jest inny
+                    print(f"⚠️ Nieznany format daty: {raw_ts}, używam teraz()")
+                    exact_timestamp = datetime.now()
+
+            # Przypadek 3: Coś innego/Null
+            else:
+                exact_timestamp = datetime.now()
+
+            # Najważniejsze: usuwamy strefę czasową (make naive) dla bazy danych
             if exact_timestamp.tzinfo is not None:
                 exact_timestamp = exact_timestamp.replace(tzinfo=None)
 
             print(f"🔍 THREAT: {ip} / {user} / {row['alert_type']} [{exact_timestamp}]")
 
             # Ignorujemy lokalne
-            if ip in ['LOCAL', 'LOCAL_CONSOLE', '127.0.0.1', '::1']:
-                print(f"⏭️ Pomijam lokalny IP: {ip}")
-                continue
+            # if ip in ['LOCAL', 'LOCAL_CONSOLE', '127.0.0.1', '::1']:
+            #     print(f"⏭️ Pomijam lokalny IP: {ip}")
+            #     continue
 
             # =======================================================
             # LOGIKA SIEM - THREAT INTELLIGENCE
@@ -124,7 +137,7 @@ class LogAnalyzer:
                 Alert.host_id == host_id,
                 Alert.source_ip == ip,
                 Alert.alert_type == row['alert_type'],
-                Alert.timestamp == exact_timestamp  # Teraz zadziała poprawnie
+                Alert.timestamp == exact_timestamp  # Teraz zadziała poprawnie dla obu systemów
             ).first()
 
             if existing_alert:
@@ -138,7 +151,7 @@ class LogAnalyzer:
                 source_ip=ip,
                 severity=severity,
                 message=message,
-                timestamp=exact_timestamp  # <--- TO JEST KLUCZ DO SUKCESU
+                timestamp=exact_timestamp  # <--- TO JEST KLUCZOWE
             )
 
             db.session.add(new_alert)
@@ -154,10 +167,23 @@ class LogAnalyzer:
     def _check_cross_host_attack(ip_address, current_host_id, ip_record):
         """
         ⭐ CROSS-HOST CORRELATION (ZADANIE DODATKOWE)
+
+        Sprawdza czy dany IP zaatakował więcej niż 1 host w ciągu ostatnich 10 minut.
+        Jeśli TAK i IP jest UNKNOWN - automatycznie banuje go i podnosi alarm CRITICAL.
+
+        Args:
+            ip_address: Adres IP do sprawdzenia
+            current_host_id: ID aktualnie analizowanego hosta
+            ip_record: Obiekt IPRegistry dla tego IP
+
+        Returns:
+            bool: True jeśli IP zostało automatycznie zbanowane
         """
+        # Jeśli IP już jest BANNED lub TRUSTED, nie analizujemy
         if ip_record.status in ['BANNED', 'TRUSTED']:
             return False
 
+        # Sprawdź ataki z ostatnich 10 minut
         # Używamy datetime.now() bez timezone.utc dla spójności
         ten_minutes_ago = datetime.now() - timedelta(minutes=10)
 

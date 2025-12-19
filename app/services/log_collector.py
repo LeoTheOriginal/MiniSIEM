@@ -44,7 +44,7 @@ class LogCollector:
                     print(f"⚠️ STDERR: {stderr[:300]}")
                 return []
 
-            print(f"📝 First 300 chars of stdout:\n{stdout[:300]}")
+            # print(f"📝 First 300 chars of stdout:\n{stdout[:300]}")
 
             lines_processed = 0
             messages_checked = 0
@@ -63,8 +63,8 @@ class LogCollector:
                     messages_checked += 1
 
                     # DEBUG: Pokaż pierwsze 10 messages
-                    if messages_checked <= 10:
-                        print(f"🔍 MESSAGE #{messages_checked}: {message[:200]}")
+                    # if messages_checked <= 10:
+                    #     print(f"🔍 MESSAGE #{messages_checked}: {message[:200]}")
 
                     ts_micro = int(entry.get('__REALTIME_TIMESTAMP', 0))
                     timestamp = datetime.fromtimestamp(ts_micro / 1_000_000)
@@ -82,8 +82,8 @@ class LogCollector:
 
         except Exception as e:
             print(f"Error collecting Linux logs: {e}")
-            import traceback
-            traceback.print_exc()
+            # import traceback
+            # traceback.print_exc()
             return []
 
         return logs
@@ -128,6 +128,7 @@ class LogCollector:
     def get_windows_logs(win_client, last_fetch_time=None):
         logs = []
 
+        # --- FIX: Zmiana formatu daty z 'mm' (minuty) na 'MM' (miesiące) ---
         ps_cmd = (
             "Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 20 -ErrorAction SilentlyContinue | "
             "ForEach-Object { "
@@ -135,7 +136,7 @@ class LogCollector:
             "   $data = @{}; "
             "   $xml.Event.EventData.Data | ForEach-Object { $data[$_.Name] = $_.'#text' }; "
             "   [PSCustomObject]@{ "
-            "       Timestamp = $_.TimeCreated.ToString('yyyy-mm-dd HH:mm:ss'); "
+            "       Timestamp = $_.TimeCreated.ToString('yyyy-MM-dd HH:mm:ss'); "  # <--- TU BYŁ BŁĄD (mm -> MM)
             "       IpAddress = $data['IpAddress']; "
             "       TargetUserName = $data['TargetUserName']; "
             "       EventId = $_.Id "
@@ -158,6 +159,9 @@ class LogCollector:
                 return []
 
             try:
+                # Jeśli PowerShell zwrócił jeden obiekt, może nie być w liście
+                if stdout.strip().startswith('{'):
+                    stdout = f"[{stdout}]"
                 data = json.loads(stdout)
             except json.JSONDecodeError:
                 print("WinLog Error: Invalid JSON from PowerShell")
@@ -171,8 +175,10 @@ class LogCollector:
                 ts_str = entry.get('Timestamp')
 
                 try:
+                    # Teraz parsowanie zadziała, bo data będzie miała sensowny miesiąc
                     timestamp = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
                 except (ValueError, TypeError):
+                    print(f"⚠️ Błąd parsowania daty z Windows: {ts_str}. Używam teraz().")
                     timestamp = datetime.now()
 
                 if not ip or ip == '-':

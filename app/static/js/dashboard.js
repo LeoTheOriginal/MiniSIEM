@@ -274,8 +274,9 @@ async function refreshAlertsTable() {
             const row = createEl('tr', [], '', alertsBody);
 
             // Parsowanie timestamp
-            const utcDate = new Date(alert.timestamp.replace(" ", "T") + "Z");
-            createEl('td', ['small'], utcDate.toLocaleString('pl-PL'), row);
+            // POPRAWIONY FRAGMENT
+const utcDate = new Date(alert.timestamp.replace(" ", "T") + "Z");
+createEl('td', ['small'], utcDate.toLocaleString('pl-PL', { timeZone: 'UTC' }), row);
 
             // Host
             const hostCell = createEl('td', [], '', row);
