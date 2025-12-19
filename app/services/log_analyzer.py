@@ -46,7 +46,20 @@ class LogAnalyzer:
             ip = row['source_ip']
             user = row.get('user', 'unknown')
 
-            print(f"🔍 THREAT: {ip} / {user} / {row['alert_type']}")
+            # --- FIX: Czysta data bez strefy czasowej ---
+            # Pobieramy czas z logu
+            exact_timestamp = row['timestamp']
+
+            # Konwersja na obiekt datetime, jeśli to timestamp Pandasa
+            if hasattr(exact_timestamp, 'to_pydatetime'):
+                exact_timestamp = exact_timestamp.to_pydatetime()
+
+            # Najważniejsze: usuwamy strefę czasową (make naive).
+            # Dzięki temu mamy "surową" godzinę (np. 02:04) taką jak w logu.
+            if exact_timestamp.tzinfo is not None:
+                exact_timestamp = exact_timestamp.replace(tzinfo=None)
+
+            print(f"🔍 THREAT: {ip} / {user} / {row['alert_type']} [{exact_timestamp}]")
 
             # Ignorujemy lokalne
             if ip in ['LOCAL', 'LOCAL_CONSOLE', '127.0.0.1', '::1']:
@@ -65,19 +78,24 @@ class LogAnalyzer:
                 ip_record = IPRegistry(
                     ip_address=ip,
                     status='UNKNOWN',
-                    last_seen=datetime.now(timezone.utc)
+                    last_seen=exact_timestamp  # Używamy czasu z logu
                 )
                 db.session.add(ip_record)
                 db.session.commit()
             else:
                 # 3. Jeśli JEST - zaktualizuj last_seen
-                ip_record.last_seen = datetime.now(timezone.utc)
-                db.session.commit()
+                # Upewniamy się, że obecny last_seen w bazie też nie ma strefy przed porównaniem
+                current_last = ip_record.last_seen
+                if current_last and current_last.tzinfo is not None:
+                    current_last = current_last.replace(tzinfo=None)
+
+                if not current_last or exact_timestamp > current_last:
+                    ip_record.last_seen = exact_timestamp
+                    db.session.commit()
 
             # =======================================================
             # ⭐ CROSS-HOST CORRELATION (ZADANIE DODATKOWE)
             # =======================================================
-            # Sprawdź czy to IP zaatakowało już inne hosty w ostatnich 10 minutach
             auto_banned = LogAnalyzer._check_cross_host_attack(ip, host_id, ip_record)
 
             # 4. Ustalenie poziomu alertu na podstawie statusu IP
@@ -91,7 +109,6 @@ class LogAnalyzer:
                 else:
                     message = f"⚠️ ATAK Z ZBANOWANEGO IP! {ip} próbował zalogować się jako '{user}'"
             elif ip_record.status == 'TRUSTED':
-                # Możemy pominąć alerty z zaufanych IP lub oznaczyć jako INFO
                 severity = 'INFO'
                 message = f"Nieudane logowanie z zaufanego IP {ip} jako '{user}' (możliwy błąd użytkownika)"
             elif ip_record.status == 'UNKNOWN':
@@ -102,27 +119,26 @@ class LogAnalyzer:
             # DEDUPLIKACJA - Sprawdź czy alert już istnieje
             # =======================================================
 
-            # Sprawdzamy czy w ostatnich 5 minutach był już identyczny alert
-            five_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
+            # Szukamy DOKŁADNIE tego wpisu (po dacie z logu, a nie "teraz")
             existing_alert = Alert.query.filter(
                 Alert.host_id == host_id,
                 Alert.source_ip == ip,
                 Alert.alert_type == row['alert_type'],
-                Alert.timestamp >= five_minutes_ago
+                Alert.timestamp == exact_timestamp  # Teraz zadziała poprawnie
             ).first()
 
             if existing_alert:
                 print(f"⏭️ Pomijam duplikat: {ip} / {user} / {row['alert_type']} (już w bazie)")
                 continue
 
-            # 5. Utworzenie alertu
+            # 5. Utworzenie alertu - ZAPISUJEMY CZAS Z LOGU
             new_alert = Alert(
                 host_id=host_id,
                 alert_type=row['alert_type'],
                 source_ip=ip,
                 severity=severity,
                 message=message,
-                timestamp=datetime.now(timezone.utc)
+                timestamp=exact_timestamp  # <--- TO JEST KLUCZ DO SUKCESU
             )
 
             db.session.add(new_alert)
@@ -138,41 +154,25 @@ class LogAnalyzer:
     def _check_cross_host_attack(ip_address, current_host_id, ip_record):
         """
         ⭐ CROSS-HOST CORRELATION (ZADANIE DODATKOWE)
-
-        Sprawdza czy dany IP zaatakował więcej niż 1 host w ciągu ostatnich 10 minut.
-        Jeśli TAK i IP jest UNKNOWN - automatycznie banuje go i podnosi alarm CRITICAL.
-
-        Args:
-            ip_address: Adres IP do sprawdzenia
-            current_host_id: ID aktualnie analizowanego hosta
-            ip_record: Obiekt IPRegistry dla tego IP
-
-        Returns:
-            bool: True jeśli IP zostało automatycznie zbanowane
         """
-        # Jeśli IP już jest BANNED lub TRUSTED, nie analizujemy
         if ip_record.status in ['BANNED', 'TRUSTED']:
             return False
 
-        # Sprawdź ataki z ostatnich 10 minut
-        ten_minutes_ago = datetime.now(timezone.utc) - timedelta(minutes=10)
+        # Używamy datetime.now() bez timezone.utc dla spójności
+        ten_minutes_ago = datetime.now() - timedelta(minutes=10)
 
-        # Znajdź wszystkie alerty od tego IP w ostatnich 10 minutach
         recent_attacks = Alert.query.filter(
             Alert.source_ip == ip_address,
             Alert.timestamp >= ten_minutes_ago
         ).all()
 
-        # Zbierz unikalne hosty, które zaatakował
         attacked_hosts = set()
         for alert in recent_attacks:
             if alert.host_id:
                 attacked_hosts.add(alert.host_id)
 
-        # Dodaj bieżący host
         attacked_hosts.add(current_host_id)
 
-        # Jeśli zaatakował 2 lub więcej hostów - BAN!
         if len(attacked_hosts) >= 2:
             print(f"🚨 CROSS-HOST ATTACK DETECTED! IP {ip_address} zaatakował {len(attacked_hosts)} hostów:")
             for host_id in attacked_hosts:
