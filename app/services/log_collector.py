@@ -24,10 +24,12 @@ class LogCollector:
             cmd = "sudo journalctl -u ssh -o json --no-pager"
 
         if last_fetch_time:
-            since_str = last_fetch_time.strftime("%Y-%m-%d %H:%M:%S")
-            cmd += f' --since "{since_str}"'
+            # Używamy formatu bez spacji (T zamiast spacji)
+            since_str = last_fetch_time.strftime("%Y-%m-%dT%H:%M:%S")
+            cmd += f" --since {since_str}"
         else:
-            cmd += ' --since "7 days ago"'
+            # -7d to 7 dni temu, format bez spacji, nie wymaga cudzysłowów
+            cmd += ' --since -7d'
 
         print(f"DEBUG [Linux]: Executing command with sudo password: {'YES' if sudo_password else 'NO'}")
         print(f"DEBUG [Linux]: Command: {cmd[:80]}...")
@@ -136,7 +138,7 @@ class LogCollector:
             "   $data = @{}; "
             "   $xml.Event.EventData.Data | ForEach-Object { $data[$_.Name] = $_.'#text' }; "
             "   [PSCustomObject]@{ "
-            "       Timestamp = $_.TimeCreated.ToString('yyyy-MM-dd HH:mm:ss'); "  # <--- TU BYŁ BŁĄD (mm -> MM)
+            "       Timestamp = $_.TimeCreated.ToString('yyyy-MM-dd HH:mm:ss'); "  
             "       IpAddress = $data['IpAddress']; "
             "       TargetUserName = $data['TargetUserName']; "
             "       EventId = $_.Id "

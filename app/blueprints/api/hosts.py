@@ -290,9 +290,28 @@ def delete_ip(ip_id):
 
 @api_bp.route("/alerts", methods=["GET"])
 def get_recent_alerts():
-    alerts = Alert.query.order_by(Alert.timestamp.desc()).limit(20).all()
-    return jsonify([alert.to_dict() for alert in alerts])
+    # Pobierz parametry z URL
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
 
+    # Zabezpieczenie - max 100 per strona
+    per_page = min(per_page, 100)
+
+    # Paginacja przez SQLAlchemy
+    pagination = Alert.query.order_by(Alert.timestamp.desc()).paginate(
+        page=page,
+        per_page=per_page,
+        error_out=False
+    )
+
+    return jsonify({
+        'alerts': [alert.to_dict() for alert in pagination.items],
+        'total': pagination.total,
+        'page': pagination.page,
+        'pages': pagination.pages,
+        'has_next': pagination.has_next,
+        'has_prev': pagination.has_prev
+    })
 
 # ===================================================================
 # ⭐ ZADANIE DODATKOWE: Endpoint dla statystyk (Chart.js)

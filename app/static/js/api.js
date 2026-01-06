@@ -123,8 +123,8 @@ export async function removeIP(id) {
 }
 
 // --- ALERTS ---
-export async function fetchAlerts() {
-    const res = await fetch('/api/alerts');
+export async function fetchAlerts(page = 1, perPage = 20) {
+    const res = await fetch(`/api/alerts?page=${page}&per_page=${perPage}`);
     if (!res.ok) throw new Error('Błąd pobierania alertów');
     return await res.json();
 }

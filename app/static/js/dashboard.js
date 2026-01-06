@@ -247,12 +247,17 @@ async function handleFetchLogs(host, btn) {
     }
 }
 
-async function refreshAlertsTable() {
+let currentPage = 1;
+const perPage = 20;
+
+async function refreshAlertsTable(page = 1) {
     if (!alertsBody) return;
     clearContainer(alertsBody);
 
     try {
-        const alerts = await fetchAlerts();
+        const data = await fetchAlerts(page, perPage);
+
+        const alerts = data.alerts;
 
         if (alerts.length === 0) {
             const row = createEl('tr', [], '', alertsBody);
@@ -263,36 +268,38 @@ async function refreshAlertsTable() {
             if (alertCount) {
                 alertCount.textContent = '0';
             }
+
+            // Ukryj pagination jeśli brak alertów
+            const paginationContainer = document.getElementById('alertsPagination');
+            if (paginationContainer) {
+                clearContainer(paginationContainer);
+            }
+
             return;
         }
 
+        // Pokaż CAŁKOWITĄ liczbę alertów (nie tylko na stronie)
         if (alertCount) {
-            alertCount.textContent = alerts.length;
+            alertCount.textContent = data.total;
         }
 
+        // Renderuj alerty
         alerts.forEach(alert => {
             const row = createEl('tr', [], '', alertsBody);
 
-            // Parsowanie timestamp
-            // POPRAWIONY FRAGMENT
-const utcDate = new Date(alert.timestamp.replace(" ", "T") + "Z");
-createEl('td', ['small'], utcDate.toLocaleString('pl-PL', { timeZone: 'UTC' }), row);
+            const utcDate = new Date(alert.timestamp.replace(" ", "T") + "Z");
+            createEl('td', ['small'], utcDate.toLocaleString('pl-PL', { timeZone: 'UTC' }), row);
 
-            // Host
             const hostCell = createEl('td', [], '', row);
             hostCell.innerHTML = `<i class="fas fa-server me-1 text-muted"></i><span class="fw-bold">${alert.host_name}</span>`;
 
-            // Typ alertu
             createEl('td', ['font-monospace', 'small'], alert.alert_type, row);
 
-            // Source IP
             const ipCell = createEl('td', ['font-monospace', 'small'], '', row);
             ipCell.innerHTML = `<i class="fas fa-network-wired me-1 text-muted"></i>${alert.source_ip || '-'}`;
 
-            // Message
             createEl('td', ['small'], alert.message, row);
 
-            // Severity badge
             const badgeCell = createEl('td', ['text-center'], '', row);
             const badge = createEl('span', ['badge', 'badge-severity'], alert.severity, badgeCell);
 
@@ -305,6 +312,11 @@ createEl('td', ['small'], utcDate.toLocaleString('pl-PL', { timeZone: 'UTC' }), 
             }
         });
 
+        // Renderuj kontrolki paginacji
+        renderPagination(data);
+
+        currentPage = page;
+
     } catch (err) {
         console.error("Błąd tabeli alertów:", err);
         const row = createEl('tr', [], '', alertsBody);
@@ -312,6 +324,92 @@ createEl('td', ['small'], utcDate.toLocaleString('pl-PL', { timeZone: 'UTC' }), 
         cell.innerHTML = `<i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>Błąd pobierania alertów: ${err.message}`;
         cell.colSpan = 6;
     }
+}
+
+function renderPagination(data) {
+    const paginationContainer = document.getElementById('alertsPagination');
+    if (!paginationContainer) return;
+
+    clearContainer(paginationContainer);
+
+    // Jeśli tylko jedna strona, nie pokazuj paginacji
+    if (data.pages <= 1) return;
+
+    const nav = createEl('nav', ['mt-3'], '', paginationContainer);
+    const ul = createEl('ul', ['pagination', 'pagination-sm', 'justify-content-center', 'mb-0'], '', nav);
+
+    // Przycisk "Poprzednia"
+    const prevLi = createEl('li', ['page-item'], '', ul);
+    if (!data.has_prev) prevLi.classList.add('disabled');
+    const prevLink = createEl('a', ['page-link'], '', prevLi);
+    prevLink.href = '#alerts';
+    prevLink.innerHTML = '<i class="fas fa-chevron-left"></i> Poprzednia';
+    if (data.has_prev) {
+        prevLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            refreshAlertsTable(data.page - 1);
+            document.getElementById('alertsTable').scrollIntoView({ behavior: 'smooth' });
+        });
+    }
+
+    // Numerki stron (pokazujemy max 7 przycisków)
+    let startPage = Math.max(1, data.page - 3);
+    let endPage = Math.min(data.pages, data.page + 3);
+
+    // Zawsze pokazuj pierwszą stronę
+    if (startPage > 1) {
+        createPageButton(ul, 1, data.page);
+        if (startPage > 2) {
+            const dotsLi = createEl('li', ['page-item', 'disabled'], '', ul);
+            createEl('span', ['page-link'], '...', dotsLi);
+        }
+    }
+
+    // Środkowe strony
+    for (let i = startPage; i <= endPage; i++) {
+        createPageButton(ul, i, data.page);
+    }
+
+    // Zawsze pokazuj ostatnią stronę
+    if (endPage < data.pages) {
+        if (endPage < data.pages - 1) {
+            const dotsLi = createEl('li', ['page-item', 'disabled'], '', ul);
+            createEl('span', ['page-link'], '...', dotsLi);
+        }
+        createPageButton(ul, data.pages, data.page);
+    }
+
+    // Przycisk "Następna"
+    const nextLi = createEl('li', ['page-item'], '', ul);
+    if (!data.has_next) nextLi.classList.add('disabled');
+    const nextLink = createEl('a', ['page-link'], '', nextLi);
+    nextLink.href = '#alerts';
+    nextLink.innerHTML = 'Następna <i class="fas fa-chevron-right"></i>';
+    if (data.has_next) {
+        nextLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            refreshAlertsTable(data.page + 1);
+            document.getElementById('alertsTable').scrollIntoView({ behavior: 'smooth' });
+        });
+    }
+
+    // Info o stronie
+    const infoDiv = createEl('div', ['text-center', 'text-muted', 'small', 'mt-2'], '', paginationContainer);
+    infoDiv.innerHTML = `Strona ${data.page} z ${data.pages} | Wszystkich alertów: <strong>${data.total}</strong>`;
+}
+
+function createPageButton(ul, pageNum, currentPage) {
+    const pageLi = createEl('li', ['page-item'], '', ul);
+    if (pageNum === currentPage) {
+        pageLi.classList.add('active');
+    }
+    const pageLink = createEl('a', ['page-link'], pageNum.toString(), pageLi);
+    pageLink.href = '#alerts';
+    pageLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        refreshAlertsTable(pageNum);
+        document.getElementById('alertsTable').scrollIntoView({ behavior: 'smooth' });
+    });
 }
 
 // ===================================================================
