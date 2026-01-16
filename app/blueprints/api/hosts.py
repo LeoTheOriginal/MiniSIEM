@@ -169,7 +169,7 @@ def fetch_logs(host_id):
                 logs = LogCollector.get_linux_logs(
                     client,
                     last_fetch_time=log_source.last_fetch,
-                    sudo_password=ssh_password  # ← KLUCZOWA ZMIANA!
+                    sudo_password=ssh_password
                 )
 
         elif host.os_type == "WINDOWS":
@@ -200,7 +200,7 @@ def fetch_logs(host_id):
         print(f"✅ Zapisano do: {filename} ({record_count} rekordów)")
 
         # 5. Aktualizacja LogSource (last_fetch)
-        log_source.last_fetch = datetime.now(timezone.utc)
+        log_source.last_fetch = datetime.now()
         db.session.commit()
         print(f"🔄 Zaktualizowano last_fetch: {log_source.last_fetch}")
 
@@ -209,7 +209,7 @@ def fetch_logs(host_id):
             host_id=host.id,
             filename=filename,
             record_count=record_count,
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now()
         )
         db.session.add(archive)
         db.session.commit()

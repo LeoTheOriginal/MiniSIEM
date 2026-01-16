@@ -63,7 +63,7 @@ class RemoteClient:
             # Escapuj pojedyncze cudzysłowy w haśle (na wszelki wypadek)
             escaped_password = sudo_password.replace("'", "'\\''")
             # Użyj printf zamiast echo (bardziej portable)
-            wrapped_command = f"/bin/bash -c \"printf '%s\\n' '{escaped_password}' | {command}\""
+            wrapped_command = f"echo '{escaped_password}' | {command}"
             print(f"🔧 [RemoteClient.run] Wrapping with bash and printf")
             print(f"🔧 [RemoteClient.run] Wrapped command: {wrapped_command[:100]}...")
             actual_command = wrapped_command
